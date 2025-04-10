@@ -1,10 +1,20 @@
 use axum::extract::Multipart;
-use tokio::{fs::{self, File}, io::AsyncWriteExt};
+use chrono::Local;
+use tokio::{
+    fs::{self, File},
+    io::AsyncWriteExt,
+};
 
-use crate::{db_config::storefiles::{store_file, FileData}, upload::compress};
+use crate::{
+    db_config::storefiles::{FileData, store_file},
+    upload::compress,
+};
 
-pub async fn file_uplaod(mut multipart: Multipart) //-> Result<impl IntoResponse, &'static dyn Error>{
+pub async fn file_uplaod(mut multipart: Multipart)
 {
+    
+    let start = Local::now();
+
     while let Some(field) = multipart
         .next_field()
         .await
@@ -15,19 +25,22 @@ pub async fn file_uplaod(mut multipart: Multipart) //-> Result<impl IntoResponse
         }
         // getting the file
         let file_name = field.file_name().expect("Failed to get file name");
-        println!("Got the file {}", file_name);
+        println!("{:?} : Got the file {}",start, file_name);
 
         // creating file dir
 
         fs::create_dir_all("files").await.unwrap();
+        println!("{} : Creating a directory ", start);
         
         // creating a path  for to serve the file to be
         let file_path = format!("files/{}", file_name);
-        
+        println!("{} : Creating file_path {}",start, file_name);
         // get the incoming bytes
         let data = field.bytes().await.unwrap();
         // Opening the handle to the file
-        let mut file_handle = File::create(file_path.clone()).await.expect("Failed to create file");
+        let mut file_handle = File::create(file_path.clone())
+            .await
+            .expect("Failed to create file");
 
         // writing all the incoming files to handle
         file_handle
@@ -37,9 +50,7 @@ pub async fn file_uplaod(mut multipart: Multipart) //-> Result<impl IntoResponse
         // Here we call the compress fn to compress our collected file.
         let compressed_file = compress(&file_path).await;
         let file = file_path;
-        let content = FileData::new(file, compressed_file);
+        let content = FileData::new(file, Some(compressed_file));
         store_file(content).await;
-
-
     }
 }
